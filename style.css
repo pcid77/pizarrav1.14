@@ -27,6 +27,9 @@ body {
   border-right: 2px solid #4f89bd;
   box-shadow: inset -8px 0 22px rgba(0, 0, 0, .45);
   overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
 }
 
 h1 { font-size: 1.2rem; margin-top: 0; color: var(--accent); letter-spacing: .03em; }
@@ -138,7 +141,7 @@ input { flex: 1; }
 .timeline-period { position: absolute; top: 10px; height: 12px; border-radius: 999px; background: linear-gradient(90deg, rgba(126,243,255,.95), rgba(255,176,122,.95)); }
 .timeline-period span { position: absolute; top: 14px; left: 0; font-size: calc(.67rem * var(--pill-scale, 1)); white-space: nowrap; }
 
-.connection-line { stroke: #9bf4ff; stroke-width: 2.4; opacity: .95; }
+.connection-line { stroke: #9bf4ff; stroke-width: 2.8; opacity: .98; vector-effect: non-scaling-stroke; }
 
 dialog {
   width: min(820px, 94vw);
@@ -156,4 +159,25 @@ dialog {
 .dialog-actions { display: flex; justify-content: flex-end; gap: .5rem; padding: 0; }
 .top-actions { justify-content: flex-start; }
 
+
+.note-pill[contenteditable="true"],
+.timeline-event [contenteditable="true"],
+.timeline-period [contenteditable="true"] {
+  cursor: text;
+  outline: 1px dashed transparent;
+}
+.note-pill[contenteditable="true"]:focus,
+.timeline-event [contenteditable="true"]:focus,
+.timeline-period [contenteditable="true"]:focus {
+  outline-color: rgba(126, 243, 255, .75);
+  background: rgba(126,243,255,.14);
+}
+
 .json-message { min-height: 1.2rem; color: #ffd3b4; }
+
+
+#dataSection {
+  margin-top: auto;
+  padding-top: .8rem;
+  border-top: 1px dashed #4a7097;
+}
