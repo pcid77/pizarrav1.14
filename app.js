@@ -1,4 +1,4 @@
-const STORAGE_KEY = "infinite-board-v2";
+const STORAGE_KEY = "infinite-board-v3";
 
 const state = {
   boards: {},
@@ -18,6 +18,12 @@ const els = {
   nodeTemplate: document.getElementById("nodeTemplate"),
   connectMode: document.getElementById("connectMode"),
   toolButtons: [...document.querySelectorAll("[data-tool]")],
+  timelineDialog: document.getElementById("timelineDialog"),
+  timelineForm: document.getElementById("timelineForm"),
+  timelineRows: document.getElementById("timelineRows"),
+  addEventRow: document.getElementById("addEventRow"),
+  addPeriodRow: document.getElementById("addPeriodRow"),
+  cancelTimeline: document.getElementById("cancelTimeline"),
 };
 
 init();
@@ -45,6 +51,10 @@ function bindUI() {
     els.connectMode.classList.toggle("active", state.connectMode);
     renderBoard();
   });
+
+  els.addEventRow.addEventListener("click", () => addTimelineRow("event"));
+  els.addPeriodRow.addEventListener("click", () => addTimelineRow("period"));
+  els.cancelTimeline.addEventListener("click", () => els.timelineDialog.close("cancel"));
 
   let panning = false;
   let start = { x: 0, y: 0 };
@@ -79,7 +89,7 @@ function bindUI() {
   });
 }
 
-function addNode(type) {
+async function addNode(type) {
   const board = activeBoard();
   if (!board) return;
 
@@ -88,32 +98,30 @@ function addNode(type) {
     type,
     x: 140 + board.nodes.length * 20,
     y: 120 + board.nodes.length * 20,
+    width: 300,
+    height: type === "timeline" ? 220 : 190,
     title: { note: "Nota", image: "Imagen", video: "Video", timeline: "Línea de tiempo" }[type],
     data: {},
   };
 
-  if (type === "note") {
-    base.data.text = prompt("Escribe tu nota:", "Idea principal") || "";
-  }
-
+  if (type === "note") base.data.text = prompt("Escribe tu nota:", "Idea principal") || "";
   if (type === "image") {
     base.data.url =
       prompt("URL de imagen:", "https://images.unsplash.com/photo-1509099836639-18ba1795216d?w=800") || "";
   }
-
   if (type === "video") {
     base.data.url = prompt("URL de YouTube o Vimeo:", "https://www.youtube.com/watch?v=dQw4w9WgXcQ") || "";
   }
-
   if (type === "timeline") {
-    base.data.items = collectTimelineItems();
-    if (!base.data.items.length) {
-      base.data.items = [
-        { label: "Kickoff", date: "2026-01-15", kind: "event" },
-        { label: "Diseño", start: "2026-02-01", end: "2026-02-20", kind: "period" },
-        { label: "Release", date: "2026-03-01", kind: "event" },
-      ];
-    }
+    const items = await openTimelineDialog();
+    if (items === null) return;
+    base.data.items = items.length
+      ? items
+      : [
+          { kind: "event", label: "Inicio", date: "2026-01-10" },
+          { kind: "period", label: "Implementación", start: "2026-01-15", end: "2026-02-20" },
+          { kind: "event", label: "Entrega", date: "2026-03-01" },
+        ];
   }
 
   board.nodes.push(base);
@@ -121,25 +129,76 @@ function addNode(type) {
   renderBoard();
 }
 
-function collectTimelineItems() {
-  const raw = prompt(
-    "Introduce eventos/periodos (uno por línea).\nFormato evento: evento|Nombre|YYYY-MM-DD\nFormato periodo: periodo|Nombre|YYYY-MM-DD|YYYY-MM-DD",
-    "evento|Inicio|2026-01-10\nperiodo|Implementación|2026-01-15|2026-02-20\nevento|Entrega|2026-03-01"
-  );
+function openTimelineDialog() {
+  els.timelineRows.innerHTML = "";
+  addTimelineRow("event");
+  addTimelineRow("period");
 
-  if (!raw) return [];
+  return new Promise((resolve) => {
+    const onSubmit = (e) => {
+      e.preventDefault();
+      const items = collectTimelineRows();
+      cleanup();
+      els.timelineDialog.close("save");
+      resolve(items);
+    };
 
-  return raw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const parts = line.split("|").map((x) => x.trim());
-      if (parts[0] === "evento" && parts.length >= 3) {
-        return { kind: "event", label: parts[1], date: parts[2] };
+    const onClose = () => {
+      if (els.timelineDialog.returnValue !== "save") resolve(null);
+      cleanup();
+    };
+
+    const cleanup = () => {
+      els.timelineForm.removeEventListener("submit", onSubmit);
+      els.timelineDialog.removeEventListener("close", onClose);
+    };
+
+    els.timelineForm.addEventListener("submit", onSubmit);
+    els.timelineDialog.addEventListener("close", onClose);
+    els.timelineDialog.showModal();
+  });
+}
+
+function addTimelineRow(type) {
+  const row = document.createElement("div");
+  row.className = "timeline-row";
+
+  if (type === "event") {
+    row.innerHTML = `
+      <span class="badge">Evento</span>
+      <input data-field="label" placeholder="Nombre" value="Nuevo evento" />
+      <input data-field="date" type="date" />
+      <button type="button" class="remove-row">✕</button>
+    `;
+  } else {
+    row.innerHTML = `
+      <span class="badge">Periodo</span>
+      <input data-field="label" placeholder="Nombre" value="Nuevo periodo" />
+      <input data-field="start" type="date" />
+      <input data-field="end" type="date" />
+      <button type="button" class="remove-row">✕</button>
+    `;
+  }
+
+  row.dataset.type = type;
+  row.querySelector(".remove-row").addEventListener("click", () => row.remove());
+  els.timelineRows.append(row);
+}
+
+function collectTimelineRows() {
+  const rows = [...els.timelineRows.querySelectorAll(".timeline-row")];
+  return rows
+    .map((row) => {
+      const type = row.dataset.type;
+      const fields = Object.fromEntries(
+        [...row.querySelectorAll("input")].map((i) => [i.dataset.field, i.value.trim()])
+      );
+
+      if (type === "event" && fields.label && fields.date) {
+        return { kind: "event", label: fields.label, date: fields.date };
       }
-      if (parts[0] === "periodo" && parts.length >= 4) {
-        return { kind: "period", label: parts[1], start: parts[2], end: parts[3] };
+      if (type === "period" && fields.label && fields.start && fields.end) {
+        return { kind: "period", label: fields.label, start: fields.start, end: fields.end };
       }
       return null;
     })
@@ -191,7 +250,10 @@ function renderBoard() {
     el.dataset.id = node.id;
     el.style.left = `${node.x}px`;
     el.style.top = `${node.y}px`;
+    el.style.width = `${node.width || 300}px`;
+    el.style.height = `${node.height || 190}px`;
     el.querySelector(".title").textContent = node.title;
+
     if (state.connectFrom === node.id) el.classList.add("selected-for-connection");
 
     const content = el.querySelector(".content");
@@ -209,9 +271,15 @@ function renderBoard() {
       renderBoard();
     });
 
+    const resize = el.querySelector(".resize-handle");
+    resize.addEventListener("mousedown", (ev) => {
+      ev.stopPropagation();
+      resizeNode(ev, node);
+    });
+
     let moved = false;
     el.addEventListener("mousedown", (ev) => {
-      if (ev.button !== 0) return;
+      if (ev.button !== 0 || ev.target.closest(".resize-handle")) return;
       moved = false;
       dragNode(ev, node, () => {
         moved = true;
@@ -251,9 +319,7 @@ function connectNode(targetId) {
     (c) => (c.from === state.connectFrom && c.to === targetId) || (c.from === targetId && c.to === state.connectFrom)
   );
 
-  if (!exists) {
-    board.connections.push({ id: crypto.randomUUID(), from: state.connectFrom, to: targetId });
-  }
+  if (!exists) board.connections.push({ id: crypto.randomUUID(), from: state.connectFrom, to: targetId });
 
   state.connectFrom = null;
   save();
@@ -270,10 +336,10 @@ function timeline(items) {
 
   const parsed = items
     .map((item) => {
-      const date = item.kind === "event" ? parseDate(item.date) : parseDate(item.start);
-      const end = item.kind === "period" ? parseDate(item.end) : date;
-      if (!date || !end) return null;
-      return { ...item, _start: date, _end: end };
+      const start = item.kind === "event" ? parseDate(item.date) : parseDate(item.start);
+      const end = item.kind === "period" ? parseDate(item.end) : start;
+      if (!start || !end) return null;
+      return { ...item, _start: start, _end: end };
     })
     .filter(Boolean)
     .sort((a, b) => a._start - b._start);
@@ -283,8 +349,8 @@ function timeline(items) {
     return wrap;
   }
 
-  const min = parsed.reduce((acc, i) => Math.min(acc, i._start), parsed[0]._start);
-  const max = parsed.reduce((acc, i) => Math.max(acc, i._end), parsed[0]._end);
+  const min = Math.min(...parsed.map((p) => p._start));
+  const max = Math.max(...parsed.map((p) => p._end));
   const range = Math.max(max - min, 1);
 
   const track = document.createElement("div");
@@ -295,7 +361,7 @@ function timeline(items) {
       const period = document.createElement("div");
       period.className = "timeline-period";
       period.style.left = `${((item._start - min) / range) * 100}%`;
-      period.style.width = `${((item._end - item._start) / range) * 100}%`;
+      period.style.width = `${Math.max(4, ((item._end - item._start) / range) * 100)}%`;
       period.innerHTML = `<span>${item.label} (${item.start} → ${item.end})</span>`;
       track.append(period);
       return;
@@ -332,13 +398,7 @@ function videoEmbed(url = "") {
 
 function dragNode(ev, node, onMoveDetected) {
   ev.preventDefault();
-
-  const start = {
-    mouseX: ev.clientX,
-    mouseY: ev.clientY,
-    nodeX: node.x,
-    nodeY: node.y,
-  };
+  const start = { mouseX: ev.clientX, mouseY: ev.clientY, nodeX: node.x, nodeY: node.y };
 
   function onMove(e) {
     const dx = (e.clientX - start.mouseX) / state.viewport.scale;
@@ -361,20 +421,45 @@ function dragNode(ev, node, onMoveDetected) {
   window.addEventListener("mouseup", onUp);
 }
 
+function resizeNode(ev, node) {
+  ev.preventDefault();
+  const start = { mouseX: ev.clientX, mouseY: ev.clientY, width: node.width || 300, height: node.height || 190 };
+
+  function onMove(e) {
+    const dx = (e.clientX - start.mouseX) / state.viewport.scale;
+    const dy = (e.clientY - start.mouseY) / state.viewport.scale;
+    node.width = Math.max(220, start.width + dx);
+    node.height = Math.max(130, start.height + dy);
+    renderBoard();
+  }
+
+  function onUp() {
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", onUp);
+    save();
+  }
+
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+}
+
 function drawConnection(conn, board) {
   const from = board.nodes.find((n) => n.id === conn.from);
   const to = board.nodes.find((n) => n.id === conn.to);
   if (!from || !to) return;
 
-  const x1 = from.x + 130;
-  const y1 = from.y + 50;
-  const x2 = to.x + 130;
-  const y2 = to.y + 50;
+  const x1 = from.x + (from.width || 300) / 2;
+  const y1 = from.y + (from.height || 190) / 2;
+  const x2 = to.x + (to.width || 300) / 2;
+  const y2 = to.y + (to.height || 190) / 2;
 
-  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  path.setAttribute("class", "connection-line");
-  path.setAttribute("d", `M ${x1} ${y1} C ${x1 + 120} ${y1}, ${x2 - 120} ${y2}, ${x2} ${y2}`);
-  els.connections.append(path);
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  line.setAttribute("class", "connection-line");
+  line.setAttribute("x1", x1);
+  line.setAttribute("y1", y1);
+  line.setAttribute("x2", x2);
+  line.setAttribute("y2", y2);
+  els.connections.append(line);
 }
 
 function createBoard(name) {
@@ -408,10 +493,6 @@ function load() {
 function save() {
   localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify({
-      boards: state.boards,
-      activeBoardId: state.activeBoardId,
-      viewport: state.viewport,
-    })
+    JSON.stringify({ boards: state.boards, activeBoardId: state.activeBoardId, viewport: state.viewport })
   );
 }
