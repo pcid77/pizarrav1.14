@@ -29,6 +29,15 @@
         </div>
       </section>
 
+
+      <section>
+        <h2>Datos JSON</h2>
+        <div class="tools">
+          <button id="openJsonImport">Importar JSON</button>
+          <button id="exportJson">Exportar JSON</button>
+        </div>
+      </section>
+
       <section>
         <h2>Controles</h2>
         <p>• Arrastra para mover elementos.</p>
@@ -67,6 +76,21 @@
         <menu class="dialog-actions">
           <button type="button" id="cancelTimeline">Cancelar</button>
           <button type="submit" id="saveTimeline">Guardar</button>
+        </menu>
+      </form>
+    </dialog>
+
+
+
+    <dialog id="jsonDialog">
+      <form id="jsonForm" method="dialog">
+        <h3>Importar datos JSON</h3>
+        <p>Pega JSON de un tablero o de una lista de nodos.</p>
+        <textarea id="jsonInput" rows="12" placeholder='{"name":"Proyecto","nodes":[],"connections":[]}'></textarea>
+        <p id="jsonMessage" class="json-message"></p>
+        <menu class="dialog-actions">
+          <button type="button" id="cancelJson">Cancelar</button>
+          <button type="submit" id="applyJson">Aplicar JSON</button>
         </menu>
       </form>
     </dialog>
