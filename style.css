@@ -204,3 +204,11 @@ dialog {
   padding-top: .8rem;
   border-top: 1px dashed #4a7097;
 }
+
+
+.sync-cloud { margin-top: .55rem; display: grid; gap: .45rem; }
+
+#loadFileInput { display: none; }
+
+.drive-sync { margin-top: .45rem; }
+#driveWebhook { width: 100%; }
